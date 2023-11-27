@@ -10,26 +10,38 @@ __lua__
 -- `run`
 -- now the spritesheet string is copied to your clipboard
 
--- TODO IMPROVEMENTS
--- use 16-bit words: leftmost 12 bits are the number of repeats, rightmost 4 bits is the color of the pixel
--- split the 16 bits into two 8-bit words
--- translate each 8-bit word into one of the P8SCII characters
--- now the RLE compression is base256 encoded, which should make resulting strings even shorter
+-- https://gist.github.com/fletchmakes/0135b677b6c5468dfab33f4457a7c481
 
--- binary:     0000 0001 0011     1010
--- RLE:          19 repeats     color 10
-------------------------------------------
--- binary:       0000 0001      0011 1010
--- P8SCII:          \*             ':'
+-- --------------------------------------------------------
+-- calculates a base256 encoded string that represents a single RLE token - repetitions and color
+-- 1 00 0000 0000 1 0000
+-- one always-on bit, 10 bits to represent the number of repetitions, 1 always-on bit, 4 bits to represent color
+-- see the gist for a more complete explanation
 
--- color to hex table
-local color2hex = { [0]='0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f' }
+function calculateRleBitChars(numCounted, pixelColor)
+  -- put an always-on bit on the right
+  local rleBitString = 0x1 << 11
+
+  -- add the 10 bits of repetitions
+  rleBitString = rleBitString | numCounted
+
+  -- add an always-on bit to the fifth position
+  rleBitString = (rleBitString << 1) | 0x1
+  
+  -- add the color
+  rleBitString = (rleBitString << 4) | pixelColor
+
+  -- convert the bitstring into characters
+  local char1, char2 = (rleBitString >>> 8) & 0xff, rleBitString & 0xff
+
+  return chr(char1)..chr(char2)
+end
 
 function _init()
   cls(0)
 
   -- accumulator
-  local result = '128'
+  local result = ''
 
   -- state tracking
   local lastColor = sget(0, 0)
@@ -40,10 +52,10 @@ function _init()
     for x=0,127 do
       local curColor = sget(x, y)
 
-      if (curColor == lastColor) then
+      if (curColor == lastColor and numCounted < 1023) then
         numCounted += 1
       else
-        result ..= ','..numCounted..color2hex[lastColor]
+        result ..= calculateRleBitChars(numCounted, lastColor)
         numCounted = 1
       end
 
@@ -52,7 +64,7 @@ function _init()
   end
 
   -- finish the result string
-  result ..= ','..numCounted..color2hex[lastColor]
+  result ..= calculateRleBitChars(numCounted, lastColor)
 
   -- print the result to the clipboard
   printh(result, '@clip')
