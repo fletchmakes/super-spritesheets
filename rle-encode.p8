@@ -20,7 +20,7 @@ __lua__
 
 function calculateRleBitChars(numCounted, pixelColor)
   -- put an always-on bit on the right
-  local rleBitString = 0x1 << 11
+  local rleBitString = 0x1 << 10
 
   -- add the 10 bits of repetitions
   rleBitString = rleBitString | numCounted
